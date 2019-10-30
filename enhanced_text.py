@@ -15,11 +15,12 @@ class EnhancedText(sublime_plugin.TextCommand):
     def rg(self, left, right):
         return sublime.Region(left, right)
 
-    def bol(self, point):
-        return self.to_pt(self.to_rc(point)[0], 0)
+    def bol(self, point, lines=0):
+        return self.to_pt(self.to_rc(point)[0] + lines, 0)
 
-    def eol(self, point):
-        return self.view.find_by_class(point, True, sublime.CLASS_LINE_END)
+    def eol(self, point, lines=0):
+        beg = self.bol(point, lines)
+        return self.view.find_by_class(beg, True, sublime.CLASS_LINE_END)
 
     def char_at(self, point):
         return self.view.substr(point)
