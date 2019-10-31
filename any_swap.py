@@ -27,7 +27,7 @@ class Lexer(object):
         self.regexes.append("'[^']*?'")
         self.regexes.append('<[^<>]*?>')
         self.register(compare, ['<', '>'])
-        self.regexes.append('[0-9a-zA-z_\\.#@^]+')
+        self.regexes.append('[0-9a-zA-Z_\\.#@^]+')
         self.full_reg = '|'.join(self.regexes)
         self.pair_dict = {'(': ')', '[': ']', '{': '}'}
 
