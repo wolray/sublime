@@ -94,13 +94,6 @@ class Token(object):
     def contains(self, token):
         return self.beg <= token.beg and token.end <= self.end
 
-    def merge(self, token):
-        self.postfix += token.__repr__()
-        self.prior = token.prior
-        self.limit = token.limit
-        self.fixed = token.fixed
-        self.set_bound(self.beg, token.end)
-
 
 class Parser(object):
     def __init__(self):
@@ -124,7 +117,7 @@ class Parser(object):
         if back:
             # print('last', last)
             if last and last.after:
-                last.token.merge(token)
+                last.merge(new)
                 new = last
             else:
                 self.upward()
@@ -164,14 +157,17 @@ class Parser(object):
 
 class ParseNode(object):
     def __init__(self, token):
-        self.token = token
+        self.tokens = [token]
         self.parent = None
         self.sub_nodes = []
+        self.prior = prior
+        self.limit = limit
+        self.fixed = fixed
         self.index = 0
         self.after = True
 
     def __repr__(self):
-        return self.token.__repr__()
+        return ''.join([t.__repr__() for t in tokens])
 
     def sub(self, index):
         return self.sub_nodes[index] if self.sub_nodes else None
@@ -180,6 +176,13 @@ class ParseNode(object):
         node.parent = self
         node.index = len(self.sub_nodes)
         self.sub_nodes.append(node)
+
+    def merge(self, token):
+        self.tokens.append(token)
+        self.prior = token.prior
+        self.limit = token.limit
+        self.fixed = token.fixed
+        self.set_bound(self.beg, token.end)
 
     def pop(self):
         return self.sub_nodes.pop() if self.sub_nodes else None
@@ -192,10 +195,10 @@ class ParseNode(object):
         return beg, end
 
     def full(self):
-        return len(self.sub_nodes) >= self.token.limit
+        return len(self.sub_nodes) >= self.tokens[-1].limit
 
     def allow1(self):
-        return len(self.sub_nodes) >= 2 and self.token.fixed & 1 == 0
+        return len(self.sub_nodes) >= 2 and self.tokens[-1].fixed & 1 == 0
 
     def allow2(self):
         return self.token.fixed & 2 == 0 and self.full()
