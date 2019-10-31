@@ -10,7 +10,7 @@ class Lexer(object):
         self.prior_dict = {}
         self.limit_dict = {}
         self.fixed_dict = {}
-        self.register(0, ['{', '\\[', '\\(', '\\)', '\\]', '}'], INF)
+        self.register(0, ['{', '\\[', '\\(', '\\)', '\\]', '}'], 1)
         self.register(1, [';'], 1, 1 | 2)
         self.register(2, [','], fixed=2)
         self.register(3, [':'])
@@ -138,7 +138,6 @@ class Parser(object):
                 self.curr = recent[1]
                 self.curr.token.postfix += token.txt
                 self.curr.token.prior = MAX
-                self.curr.token.forbidden = False
                 self.curr.token.set_bound(self.curr.token.beg, token.end)
                 self.wait.pop()
                 new = self.curr
@@ -199,7 +198,7 @@ class ParseNode(object):
         return len(self.sub_nodes) >= 2 and self.token.fixed & 1 == 0
 
     def allow2(self):
-        return self.token.fixed & 2 == 0
+        return self.token.fixed & 2 == 0 and self.full()
 
     def right(self):
         # print('swap', self, self.parent, self.token.limit, self.token.fixed)
@@ -262,11 +261,11 @@ class AnySwapCommand(EnhancedText):
         beg = self.bol(pos)
         end = self.eol(pos)
         tokens = LEXER.tokens(self.view, beg, end)
-        # print('tokens', tokens)
+        print('tokens', tokens)
         parser = Parser()
         for t in tokens:
             parser.add(t)
-        # print(parser.root.show())
+        print(parser.root.show())
         target = parser.root.locate(pos)
         # print('target', target)
         return target
