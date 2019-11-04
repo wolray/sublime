@@ -1,56 +1,51 @@
 from .enhanced_text import *
 
 MAX = 32
-INF = 1024
+WORD = '[0-9a-zA-Z_\\.#@^]'
 
 
 class Lexer(object):
     def __init__(self):
         self.regexes = []
+        self.prior = 0
         self.prior_dict = {}
-        self.limit_dict = {}
-        self.fixed_dict = {}
-        self.register(0, ['{', '\\[', '\\(', '\\)', '\\]', '}'], 1)
-        self.register(1, [';'], 1, 1 | 2)
-        self.register(2, [','], fixed=2)
-        self.register(3, [':'])
-        assign = self.register(4, ['\\+=', '-=', '\\*=', '%=', '&=', '\\|=', '^='], fixed=1)
-        self.register(5, ['\\|\\|', 'or'])
-        self.register(6, ['&&', 'and'])
-        self.register(7, ['==', '!=', '~='])
-        self.register(assign, ['='], fixed=1)
-        compare = self.register(8, ['<=', '>='])
-        self.register(9, ['\\+', '-'])
-        self.register(10, ['\\*', '/', '%'])
-        self.register(11, ['\\.'], fixed=1)
-        self.regexes.append('"[^"]*?"')
-        self.regexes.append("'[^']*?'")
-        self.regexes.append('<[^<>]*?>')
-        self.register(compare, ['<', '>'])
-        self.regexes.append('[0-9a-zA-Z_\\.#@^]+')
+        self.rule_dict = {}
+        self.register(['{', '\\[', '\\('], 1)
+        self.register(['\\)', '\\]', '}'], 2)
+        _left = self.register([], 1)
+        self.register([';'], 2)
+        self.register([','], 3)
+        self.register([':'], 3)
+        _assign = self.register(['\\+=', '-=', '\\*=', '%=', '&=', '\\|=', '^='], 3)
+        _or = self.register(['\\|\\|'], 3)
+        _and = self.register(['&&'], 3)
+        _not = self.register(['!'], 1)
+        self.register(['==', '!=', '~='], 3)
+        self.register(['='], *_assign)
+        _compare = self.register(['<=', '>='], 3)
+        self.register(['\\+', '-'], 3)
+        self.register(['\\*', '/', '%'], 3)
+        self.register(['\\.'], 3)
+        self.regexes += ['"[^"]*?"', "'[^']*?'", '<{}*?>'.format(WORD)]
+        self.register(['<', '>'], *_compare)
+        self.regexes.append('{}+'.format(WORD))
+        self.register(['if', 'return'], *_left)
+        self.register(['or'], *_or)
+        self.register(['and'], *_and)
+        self.register(['not'], *_not)
         self.full_reg = '|'.join(self.regexes)
         self.pair_dict = {'(': ')', '[': ']', '{': '}'}
 
-    def register(self, prior, ls, limit=2, fixed=0):
+    def register(self, ls, rule, prior=None):
         self.regexes += ls
+        if prior is None:
+            prior = self.prior
+            self.prior += 1
         for c in ls:
             txt = c.replace('\\', '')
+            self.rule_dict[txt] = rule
             self.prior_dict[txt] = prior
-            self.limit_dict[txt] = limit
-            self.fixed_dict[txt] = fixed
-        return prior
-
-    def new_token(self, txt):
-        prior = self.prior_dict.get(txt)
-        if prior is None:
-            prior = MAX
-        limit = self.limit_dict.get(txt)
-        if limit is None:
-            limit = 0
-        fixed = self.fixed_dict.get(txt)
-        if fixed is None:
-            fixed = 0
-        return Token(txt, prior, limit, fixed)
+        return rule, prior
 
     def tokens(self, view, beg, end):
         curr = beg
@@ -58,10 +53,11 @@ class Lexer(object):
         while curr < end:
             rg = view.find(self.full_reg, curr)
             txt = view.substr(rg)
-            token = self.new_token(txt)
-            token.set_bound(rg.begin(), rg.end())
-            res.append(token)
+            token = Token(txt, self.prior_dict.get(txt, MAX), self.rule_dict.get(txt, 0))
+            token.rg = rg
             curr = rg.end()
+            if curr <= end:
+                res.append(token)
         return res
 
 
@@ -69,90 +65,17 @@ LEXER = Lexer()
 
 
 class Token(object):
-    def __init__(self, txt, prior, limit, fixed):
+    def __init__(self, txt, prior, rule):
         self.txt = txt
-        self.postfix = ''
         self.prior = prior
-        self.limit = limit
-        self.fixed = fixed
-        self.beg = -1
-        self.end = -1
+        self.rule = rule
+        self.rg = None
 
     def __repr__(self):
-        return self.txt + self.postfix
+        return self.txt
 
     def __len__(self):
         return self.end - self.beg
-
-    def compare_to(self, token):
-        return self.prior - token.prior
-
-    def set_bound(self, beg, end):
-        self.beg = beg
-        self.end = end
-
-    def contains(self, token):
-        return self.beg <= token.beg and token.end <= self.end
-
-
-class Parser(object):
-    def __init__(self):
-        self.root = ParseNode(Token('?', -MAX, INF, 0))
-        self.curr = self.root
-        self.wait = []
-
-    def upward(self):
-        while self.curr.full():
-            self.curr = self.curr.parent
-
-    def add(self, token):
-        # print('add', self.curr.parent, self.curr, token, self.wait)
-        new = ParseNode(token)
-        last = self.curr.sub(-1)
-        if token.prior == MAX:
-            self.upward()
-            self.curr.add(new)
-            return
-        back = LEXER.pair_dict.get(token.txt)
-        if back:
-            # print('last', last)
-            if last and last.after:
-                last.merge(new)
-                new = last
-            else:
-                self.upward()
-                self.curr.add(new)
-            self.curr = new
-            self.wait.append((back, new))
-            return
-        if token.prior == 0 and self.wait:
-            recent = self.wait[-1]
-            if token.txt == recent[0]:
-                self.curr = recent[1]
-                self.curr.token.postfix += token.txt
-                self.curr.token.prior = MAX
-                self.curr.token.set_bound(self.curr.token.beg, token.end)
-                self.wait.pop()
-                new = self.curr
-                self.curr = self.curr.parent
-                return
-        if token.prior > self.curr.token.prior:
-            if last and last.after:
-                self.curr.pop()
-                new.add(last)
-                last.after = False
-            self.curr.add(new)
-            self.curr = new
-        else:
-            node = self.curr
-            while node.parent and node.parent.token.compare_to(token) >= 0:
-                node = node.parent
-            if node.parent:
-                node.parent.pop()
-                node.parent.add(new)
-            new.add(node)
-            node.after = False
-            self.curr = new
 
 
 class ParseNode(object):
@@ -160,80 +83,85 @@ class ParseNode(object):
         self.tokens = [token]
         self.parent = None
         self.sub_nodes = []
-        self.prior = prior
-        self.limit = limit
-        self.fixed = fixed
+        self.prior = token.prior
+        self.rule = token.rule
         self.index = 0
-        self.after = True
+        if token.rg is not None:
+            self.beg = token.rg.begin()
+            self.end = token.rg.end()
 
     def __repr__(self):
-        return ''.join([t.__repr__() for t in tokens])
+        return ''.join([t.__repr__() for t in self.tokens])
 
     def sub(self, index):
         return self.sub_nodes[index] if self.sub_nodes else None
+
+    def cmp(self, node):
+        return self.prior - node.prior
 
     def add(self, node):
         node.parent = self
         node.index = len(self.sub_nodes)
         self.sub_nodes.append(node)
 
-    def merge(self, token):
-        self.tokens.append(token)
-        self.prior = token.prior
-        self.limit = token.limit
-        self.fixed = token.fixed
-        self.set_bound(self.beg, token.end)
+    def insert(self, node):
+        last = self.pop()
+        self.add(node)
+        node.add(last)
+
+    def merge(self, node):
+        self.tokens += node.tokens
+        self.prior = node.prior
+        self.rule = node.rule & 1
+        self.end = node.end
 
     def pop(self):
         return self.sub_nodes.pop() if self.sub_nodes else None
 
     def bound(self):
         if not self.sub_nodes:
-            return self.token.beg, self.token.end
-        beg = min(self.token.beg, self.sub(0).bound()[0])
-        end = max(self.token.end, self.sub(-1).bound()[1])
+            return self.beg, self.end
+        beg = min(self.beg, self.sub(0).bound()[0])
+        end = max(self.end, self.sub(-1).bound()[1])
         return beg, end
 
-    def full(self):
-        return len(self.sub_nodes) >= self.tokens[-1].limit
+    def prev_node(self):
+        if self.index > 0:
+            return self.parent.sub(self.index - 1)
+        return None
 
-    def allow1(self):
-        return len(self.sub_nodes) >= 2 and self.tokens[-1].fixed & 1 == 0
-
-    def allow2(self):
-        return self.token.fixed & 2 == 0 and self.full()
+    def next_node(self):
+        if self.index < len(self.parent.sub_nodes) - 1:
+            return self.parent.sub(self.index + 1)
+        return None
 
     def right(self):
-        # print('swap', self, self.parent, self.token.limit, self.token.fixed)
+        # print('right', self, self.parent, self.index)
         if not self.parent:
             return self, None
-        if self.index + 1 < len(self.parent.sub_nodes) and self.parent.allow1():
-            right = self.parent.sub(self.index + 1)
-            if right.allow2():
-                return self, right
+        right = self.next_node()
+        if right:
+            return self, right
         res = self.parent.right()
-        if self.parent.parent:
-            if self.parent.token.prior == self.parent.parent.token.prior:
-                if self.allow2():
-                    return self, res[1]
+        if self.parent.parent and self.parent.rule == 3:
+            if self.parent.cmp(self.parent.parent) == 0:
+                return self, res[1]
         return res
 
     def left(self):
-        # print('swap', self, self.parent, self.token.limit, self.token.fixed)
+        # print('left', self, self.parent, left)
         if not self.parent:
             return None, self
-        if self.index > 0 and self.parent.allow1():
-            left = self.parent.sub(self.index - 1)
-            if left.token.prior == self.parent.token.prior:
+        left = self.prev_node()
+        if left:
+            if left.cmp(self.parent) == 0 and self.parent.rule == 3:
                 left = left.sub(-1)
-            if left.allow2() and self.allow2():
-                return left, self
+            return left, self
         return self.parent.left()
 
     def locate(self, pos):
         res = None
-        if self.token.beg <= pos <= self.token.end:
-            # print('locate has', self)
+        if self.parent and self.beg <= pos <= self.end:
             res = self
         if not self.sub_nodes:
             return res
@@ -242,6 +170,12 @@ class ParseNode(object):
             if found:
                 return found
         return res
+
+    def locate_inner(self, pos):
+        for p in enumerate(self.tokens):
+            if p[1].rg.contains(pos):
+                return p
+        return None
 
     def show(self):
         return self._print([], [], [])
@@ -258,29 +192,98 @@ class ParseNode(object):
         return ''.join(res)
 
 
+class Parser(object):
+    def __init__(self):
+        self.root = ParseNode(Token('?', -1, -1))
+        self.curr = self.root
+        self.wait = []
+        self.adders = {0: self.add0, 1: self.add1, 2: self.add2, 3: self.add3}
+
+    def add(self, token):
+        new = ParseNode(token)
+        # print('add ', self.curr, token)
+        self.adders[token.rule](new)
+        # print('add_', self.root.show())
+
+    def add0(self, node):
+        if self.curr.rule == 0:
+            self.curr.merge(node)
+        else:
+            if self.curr.rule & 1 == 0:
+                self.curr = self.curr.parent
+            self.curr.add(node)
+            self.curr = node
+
+    def add1(self, node):
+        self.add0(node)
+        txt = node.tokens[0].txt
+        back = LEXER.pair_dict.get(txt)
+        if back:
+            self.wait.append((back, self.curr))
+
+    def add2(self, node):
+        if self.wait:
+            txt = node.tokens[0].txt
+            recent = self.wait[-1]
+            if txt == recent[0]:
+                self.curr = recent[1]
+                self.curr.merge(node)
+                self.wait.pop()
+                return
+        self.add3(node)
+
+    def add3(self, node):
+        if self.curr.rule & 1 == 0:
+            self.curr = self.curr.parent
+        while self.curr.cmp(node) >= 0:
+            self.curr = self.curr.parent
+        self.curr.insert(node)
+        self.curr = node
+
+
 class AnySwapCommand(EnhancedText):
-    def process(self):
-        pos = self.pt()
+    def process(self, pos):
         beg = self.bol(pos)
         end = self.eol(pos)
         tokens = LEXER.tokens(self.view, beg, end)
-        print('tokens', tokens)
+        # print('tokens', beg, end, tokens)
         parser = Parser()
         for t in tokens:
             parser.add(t)
-        print(parser.root.show())
+        # print(parser.root.show())
         target = parser.root.locate(pos)
         # print('target', target)
         return target
 
     def run(self, edit, forward=True):
-        target = self.process()
+        pos = self.pt()
+        target = self.process(pos)
         if not target:
             return
         lf, rt = target.right() if forward else target.left()
         # print('pair', lf, rt)
-        if lf and rt and lf.allow2() and rt.allow2():
+        pair = ()
+        if lf and rt:
+            if lf.rule == 2:
+                if rt.rule != 2:
+                    return
+            elif rt.rule == 2:
+                return
             b1, e1 = lf.bound()
             b2, e2 = rt.bound()
-            self.swap(edit, self.rg(b1, e1), self.rg(b2, e2))
-            self.move_to(e2 if forward else b1)
+            pair = (self.rg(b1, e1), self.rg(b2, e2))
+        elif target.parent.prior < 0:
+            p = target.locate_inner(pos)
+            if not p:
+                return
+            i = p[0]
+            n = len(target.tokens)
+            if forward:
+                if 0 <= i < n - 1:
+                    pair = (p[1].rg, target.tokens[i + 1].rg)
+            else:
+                if i > 0:
+                    pair = (target.tokens[i - 1].rg, p[1].rg)
+        if pair:
+            self.swap(edit, *pair)
+            self.move_to(pair[1].end() if forward else pair[0].begin())

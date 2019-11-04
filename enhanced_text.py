@@ -58,7 +58,6 @@ class EnhancedText(sublime_plugin.TextCommand):
 
     def search_backward(self, regexp, start, exit_str=False):
         row, col = self.to_rc(start)
-        pattern = '({})||$'.format(regexp)
         region = None
         curr = self.to_pt(row, 0)
         while row >= 0:
@@ -88,35 +87,3 @@ class EnhancedText(sublime_plugin.TextCommand):
     def move_to(self, point):
         self.view.sel().clear()
         self.view.sel().add(self.rg(point, point))
-
-
-class SearchMark(object):
-    def __init__(self):
-        self.a = [0, 0, 0, 0, 0]
-
-    def is_legal(self):
-        return self.a[3] == 0 and self.a[4] == 0
-
-    def next(self, c, forward):
-        if c == '(':
-            self.a[0] += 1
-        elif c == ')':
-            self.a[0] -= 1
-        elif c == '[':
-            self.a[1] += 1
-        elif c == ']':
-            self.a[1] -= 1
-        elif c == '{':
-            self.a[2] += 1
-        elif c == '}':
-            self.a[2] -= 1
-        elif c == '\'':
-            self.a[3] ^= 1
-        elif c == '"':
-            self.a[4] ^= 1
-        if self.is_legal():
-            if forward:
-                return max(self.a[0:3]) <= 0 and (c == ',' or min(self.a[0:3]) < 0)
-            else:
-                return min(self.a[0:3]) >= 0 and (c == ',' or max(self.a[0:3]) > 0)
-        return False
