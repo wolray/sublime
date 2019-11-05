@@ -52,10 +52,12 @@ class Lexer(object):
         res = []
         while curr < end:
             rg = view.find(self.full_reg, curr)
+            curr = rg.end()
+            if curr < 0:
+                break
             txt = view.substr(rg)
             token = Token(txt, self.prior_dict.get(txt, MAX), self.rule_dict.get(txt, 0))
             token.rg = rg
-            curr = rg.end()
             if curr <= end:
                 res.append(token)
         return res
