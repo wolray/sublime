@@ -25,7 +25,6 @@ class Lexer(object):
         _compare = self.register(['<=', '>='], 3)
         self.register(['\\+', '-'], 3)
         self.register(['\\*', '/', '%'], 3)
-        self.register(['\\.'], 3)
         self.regexes += ['"[^"]*?"', "'[^']*?'", '<{}*?>'.format(WORD)]
         self.register(['<', '>'], *_compare)
         self.regexes.append('{}+'.format(WORD))
