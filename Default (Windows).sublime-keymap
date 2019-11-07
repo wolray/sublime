@@ -48,7 +48,6 @@
     { "keys": ["ctrl+m", "ctrl+,"], "command": "goto_reference" },
     { "keys": ["ctrl+m", "ctrl+."], "command": "goto_symbol_in_project" },
     { "keys": ["ctrl+m", "ctrl+m"], "command": "goto_definition" },
-    { "keys": ["ctrl+m", "p"], "command": "markdown_preview", "args": {"target": "browser", "parser":"markdown"} },
     { "keys": ["ctrl+n"], "command": "undo" },
     { "keys": ["ctrl+o"], "command": "move", "args": {"by": "word_ends", "forward": true} },
     { "keys": ["ctrl+p"], "command": "move_to", "args": {"to": "eol"} },
