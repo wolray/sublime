@@ -10,7 +10,7 @@
     { "keys": ["alt+\\"], "command": "toggle_inline_diff", "args": { "prefer_hide": true } },
     { "keys": ["alt+backspace"], "command":  "revert_modification" },
     { "keys": ["alt+h"], "command": "find_all_under" },
-    { "keys": ["alt+i"], "command": "find_under" },
+    { "keys": ["alt+i"], "command": "find_next" },
     { "keys": ["alt+j"], "command": "prev_view" },
     { "keys": ["alt+k"], "command": "close" },
     { "keys": ["alt+l"], "command": "next_view" },
