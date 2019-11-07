@@ -1,2 +1,4 @@
-linters/
-Package Control.cache/
+*
+!*.sublime-settings
+!*.sublime-keymap
+!*.py
