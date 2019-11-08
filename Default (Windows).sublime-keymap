@@ -34,6 +34,8 @@
     { "keys": ["ctrl+alt+9"], "command": "select_lines", "args": {"forward": true} },
     { "keys": ["ctrl+alt+j"], "command": "move_to_neighboring_group", "args": {"forward": false} },
     { "keys": ["ctrl+alt+l"], "command": "move_to_neighboring_group" },
+    { "keys": ["ctrl+alt+o"], "command": "lower_case" },
+    { "keys": ["ctrl+alt+u"], "command": "upper_case" },
     { "keys": ["ctrl+backspace"], "command": "join_lines" },
     { "keys": ["ctrl+d"], "command": "duplicate_line" },
     { "keys": ["ctrl+enter"], "command": "run_macro_file", "args": {"file": "res://Packages/Default/Add Line Before.sublime-macro"} },
